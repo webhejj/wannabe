@@ -1,0 +1,20 @@
+#!/usr/bin/env bun
+// wannabe: --in <context> — exit 0 when the app answers its readiness URL, 1 when not, saying why
+//
+// Checks spec.readiness in .wannabe/<context>/app.yaml once, whoever started the app. When it does not
+// answer, spec.liveness (if set) and the port tell apart an app that is up but not ready from one that is
+// not running. Changes nothing, so a dry run checks too.
+import { answers, app, listeners, ownedPid } from "../../lib/app.ts";
+import { parseArgs, say } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+const a = await app(args.context);
+const who = ownedPid(a) ? "started by wannabe" : "not started by wannabe";
+if (await answers(a.readiness)) {
+  say(`ready (${who}): ${a.readiness}`);
+  process.exit(0);
+}
+if (listeners(a).length === 0) say(`not running: nothing listens on :${a.port}`);
+else if (a.liveness && (await answers(a.liveness))) say(`live but not ready (${who}): ${a.readiness} does not answer 200`);
+else say(`not ready (${who}): ${a.readiness} does not answer 200`);
+process.exit(1);

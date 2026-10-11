@@ -1,0 +1,23 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] — stop the app wannabe started; anything else on the port is left alone
+//
+// Stops the process wannabe started and whatever it left listening on the app's port (a Gradle bootRun
+// runs the app outside its own process), then checks the port is free. Nothing started by wannabe: does
+// nothing and succeeds.
+import { app, ownedPid, stop } from "../../lib/app.ts";
+import { die, parseArgs, say } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+const a = await app(args.context);
+const pid = ownedPid(a);
+if (!pid) {
+  say(`nothing started by wannabe; leaving :${a.port} alone`);
+  process.exit(0);
+}
+if (args.dryRun) {
+  say(`dry run: stop pid ${pid} and what listens on :${a.port}`);
+  process.exit(0);
+}
+say(`Stopping pid ${pid}`);
+if (!(await stop(a, pid))) die(1, `something still listens on :${a.port}`);
+say("Stopped");

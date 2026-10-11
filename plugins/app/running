@@ -1,0 +1,30 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] — start the app on this computer and wait until it is ready; prints its URL
+//
+// Runs spec.command from .wannabe/<context>/app.yaml in the background, with its log in
+// .wannabe/<context>/.state/app.log, and waits for spec.readiness to answer 200, for up to
+// spec.startTimeoutSeconds (300 by default). Fails as soon as the command exits. Prints the log's error
+// lines even when the app comes up ready.
+//
+// Already started by wannabe: waits for it to be ready, starts nothing. Something else on the port (an
+// IDE's run): exit 3, and that run is left alone.
+import { app, ownedPid, refuseForeign, reportErrors, startAndWait, waitReady } from "../../lib/app.ts";
+import { parseArgs, say } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+const a = await app(args.context);
+const pid = ownedPid(a);
+if (pid) {
+  say(`Already started by wannabe (pid ${pid})`);
+  const ready = await waitReady(a, pid);
+  reportErrors(a, "Errors in the log:");
+  if (!ready) process.exit(1);
+  console.log(a.url);
+  process.exit(0);
+}
+refuseForeign(a);
+if (args.dryRun) {
+  say(`dry run: ${a.command.join(" ")} (log: ${a.logFile}), then wait up to ${a.startTimeoutSeconds}s for ${a.readiness}`);
+  process.exit(0);
+}
+await startAndWait(a);

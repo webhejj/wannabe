@@ -38,8 +38,47 @@ spec:
 
 | Field                 | Used by                                           | Meaning                                                                                                                                    |
 |-----------------------|---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `spec.endpoints.app`  | nothing yet                                       | Where the application is served                                                                                                            |
+| `spec.endpoints.app`  | `app running`                                     | Where the application is served. `app running` prints it once the app is ready                                                             |
 | `spec.endpoints.host` | `deployment synced`, `pulled`, `running`, `ready` | The ssh target running the application. **Without it, the context is not deployed by wannabe**, and those commands answer with exit code 3 |
+
+## Application
+
+`.wannabe/<context>/app.yaml`: how wannabe runs the application on this computer, for the `app` commands. Only a
+context run on the developer's own computer has one, usually `local`; in any other context the `app` commands
+answer with exit code 3.
+
+```yaml
+apiVersion: wannabe/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+spec:
+  command: [./gradlew, bootRun]
+  readiness: http://localhost:8080/actuator/health/readiness
+  liveness: http://localhost:8080/actuator/health/liveness
+  startTimeoutSeconds: 300
+```
+
+| Field                      | Used by                         | Meaning                                                                                                                                                                       |
+|----------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spec.command`             | `running`, `reloaded`           | The command that runs the application, as a list, from the project root. It must build what changed itself, as `bootRun` does: `reloaded` is a stop and a start             |
+| `spec.readiness`           | `running`, `reloaded`, `ready`  | A URL that answers 200 once the application serves. Its port is where the application listens: wannabe refuses to start a second one when something else is listening there |
+| `spec.liveness`            | `ready`                         | Optional. A URL that answers 200 while the application is alive; only used to say why it is not ready                                                                        |
+| `spec.startTimeoutSeconds` | `running`, `reloaded`           | How long to wait for readiness; 300 when left out                                                                                                                             |
+
+The commands:
+
+```
+wannabe app running --to local    # start in the background and wait until ready; prints the URL. Again: nothing changes
+wannabe app ready --in local      # exit 0 when ready, 1 when not, saying whether it runs at all
+wannabe app reloaded --to local   # stop and start again, so it runs the current code
+wannabe app stopped --to local    # stop what wannabe started; anything else on the port is left alone
+wannabe app errors --in local     # the error lines logged since the last start, on stdout
+```
+
+wannabe only stops what it started. When something else listens on the port, such as a run from the IDE,
+`running` and `reloaded` answer with exit code 3 and leave it alone. The pid and the log are kept in
+`.wannabe/<context>/.state/`, which ignores itself in git.
 
 ## Deployment
 

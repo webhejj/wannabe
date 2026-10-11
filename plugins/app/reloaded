@@ -1,0 +1,23 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] — restart the app wannabe started, so it runs the current code
+//
+// app stopped, then app running: the command compiles what changed as it starts. A compile error ends the
+// start with the error lines, and the app stays stopped. Starts the app when nothing runs; exit 3 when
+// something wannabe did not start is on the port.
+import { app, ownedPid, refuseForeign, startAndWait, stop } from "../../lib/app.ts";
+import { die, parseArgs, say } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+const a = await app(args.context);
+const pid = ownedPid(a);
+if (!pid) refuseForeign(a);
+if (args.dryRun) {
+  if (pid) say(`dry run: stop pid ${pid} and what listens on :${a.port}`);
+  say(`dry run: ${a.command.join(" ")} (log: ${a.logFile}), then wait up to ${a.startTimeoutSeconds}s for ${a.readiness}`);
+  process.exit(0);
+}
+if (pid) {
+  say(`Stopping pid ${pid}`);
+  if (!(await stop(a, pid))) die(1, `something still listens on :${a.port}`);
+}
+await startAndWait(a);

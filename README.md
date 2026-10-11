@@ -8,6 +8,7 @@ wannabe released --to test                    # gradle built, docker pushed, dep
 wannabe deployed --to test                    # deployment synced, pulled, running, ready
 wannabe deployment committed --to test --push # once test is verified
 wannatry deployed --to test                   # the same, as a dry run
+wannabe app running --to local                # start the app on this computer, wait until it is ready
 ```
 
 Every step is also its own command, so a chain that fails half-way is continued by hand from where it stopped.
@@ -22,11 +23,11 @@ resources, plugins — so the configuration and the habits carry over if the app
 [docs/design.md](docs/design.md) has the reasoning, and the tools weighed against it.
 
 **Status: early.** It runs one application's releases and test deployments: a Gradle build, an image pushed with
-Jib, Docker Compose on a host reached over ssh. Command names and the configuration may still change.
+Jib, Docker Compose on a host reached over ssh, and the app run on the developer's computer. Command names and the configuration may still change.
 
 ## Install
 
-Requires [Bun](https://bun.sh), and git, ssh and rsync for the commands that use them. From a checkout:
+Requires [Bun](https://bun.sh), and git, ssh, rsync, curl and lsof for the commands that use them. From a checkout:
 
 ```bash
 ~/path/to/wannabe/bin/wannabe self installed [--into <dir>] [--force]
@@ -50,6 +51,9 @@ A project keeps its configuration in `.wannabe/` at its root, found by walking u
   gradle.yaml          # which Gradle tasks gradle built, cleaned and tested run
   docker.yaml          # which Gradle tasks build and push the image, and the secrets to sign in with
   secrets.yaml         # the names of the secrets the project needs (never their values)
+  local/
+    context.yaml       # where the app is reached on this computer
+    app.yaml           # how wannabe runs it here, and how readiness is checked
   test/
     context.yaml       # where test is: the application's URL, the host to deploy to
     deployment.yaml    # the compose directory, the service, how readiness is checked

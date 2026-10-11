@@ -16,3 +16,6 @@ First version, used for one application's releases and test deployments.
   `Bun.secrets`). `secret stored` · `checked` · `forgotten`, and `getSecret()` for plugins.
 - `docker pushed` signs in to the registry named in `spec.registry` with two secrets, through a scratch Docker
   configuration for that push, instead of needing a Docker login on the computer.
+- `app running` · `ready` · `reloaded` · `stopped` · `errors`: run the application on the developer's computer
+  from `.wannabe/<context>/app.yaml`, wait for its readiness URL, stop only what wannabe started, and refuse
+  (exit 3) when something else, such as an IDE's run, holds the port.
