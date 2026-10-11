@@ -10,13 +10,28 @@ console.log("INFO starting");
 if (mode === "crash") { console.log("ERROR could not start: bad config"); process.exit(1); }
 await Bun.sleep(500);
 console.log("\\x1b[31mERROR\\x1b[0m something went wrong along the way");
-Bun.serve({ port: Number(port), fetch(req) {
+const serve = () => Bun.serve({ port: Number(port), fetch(req) {
   const path = new URL(req.url).pathname;
   if (path === "/live") return new Response("UP");
   if (path === "/ready") return new Response(mode === "unready" ? "OUT" : "UP", { status: mode === "unready" ? 503 : 200 });
   return new Response("hello");
 } });
+let server = serve();
 console.log("INFO Started FakeApplication");
+// Restarts in place, as Spring devtools does, when the file "trigger" changes: down for a second, same process.
+const { existsSync, statSync } = await import("node:fs");
+let seen = existsSync("trigger") ? statSync("trigger").mtimeMs : 0;
+setInterval(async () => {
+  const now = existsSync("trigger") ? statSync("trigger").mtimeMs : 0;
+  if (now === seen) return;
+  seen = now;
+  server.stop(true);
+  console.log("INFO restarting");
+  await Bun.sleep(1000);
+  console.log("ERROR logged by the restart");
+  server = serve();
+  console.log("INFO Started FakeApplication");
+}, 100);
 `;
 
 function freePort(): number {
@@ -171,6 +186,38 @@ describe("app reloaded", () => {
     const { project, port } = setup();
     await foreign(project, port);
     expect(wannabe(project, ["app", "reloaded", "--to", "local"]).code).toBe(3);
+  }, 30000);
+
+  const reload = (script: string) => `  reloadCommand: [sh, -c, ${JSON.stringify(script)}]\n`;
+  const pidOf = (project: string) => readFileSync(join(project, ".wannabe/local/.state/app.pid"), "utf8");
+
+  test("with a reloadCommand, restarts in place and reports only the errors since", () => {
+    const { project, port } = setup("ok", reload("date > trigger"));
+    wannabe(project, ["app", "running", "--to", "local"]);
+    const before = pidOf(project);
+    const run = wannabe(project, ["app", "reloaded", "--to", "local"]);
+    expect(run.code).toBe(0);
+    expect(run.stderr).toContain("Restarting");
+    expect(run.stdout.trim()).toBe(`http://localhost:${port}/`);
+    expect(pidOf(project)).toBe(before);
+    expect(wannabe(project, ["app", "errors", "--in", "local"]).stdout).toBe("ERROR logged by the restart\n");
+  }, 30000);
+
+  test("a failing reloadCommand leaves the app running", () => {
+    const { project } = setup("ok", reload("echo 'BUILD FAILED' >&2; exit 1"));
+    wannabe(project, ["app", "running", "--to", "local"]);
+    const run = wannabe(project, ["app", "reloaded", "--to", "local"]);
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain("the app still runs what it ran before");
+    expect(wannabe(project, ["app", "ready", "--in", "local"]).code).toBe(0);
+  }, 30000);
+
+  test("a reloadCommand that restarts nothing is a failure", () => {
+    const { project } = setup("ok", reload("true"));
+    wannabe(project, ["app", "running", "--to", "local"]);
+    const run = wannabe(project, ["app", "reloaded", "--to", "local"]);
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain("no restart seen");
   }, 30000);
 });
 

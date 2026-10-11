@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-// wannabe: --in <context> — print the error lines the app logged since wannabe last started it
+// wannabe: --in <context> — print the error lines the app logged since wannabe last started or reloaded it
 //
-// Lines of .wannabe/<context>/.state/app.log matching ERROR, FAILED or "Caused by:", colours stripped,
-// on stdout. Prints nothing when there are none or wannabe never started the app.
+// Lines of .wannabe/<context>/.state/app.log since the last start or reload matching ERROR, FAILED or
+// "Caused by:", colours stripped, on stdout. Prints nothing when there are none or wannabe never started the app.
 import { app, errorLines } from "../../lib/app.ts";
 import { parseArgs } from "../../lib/plugin.ts";
 

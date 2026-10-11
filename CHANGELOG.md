@@ -18,4 +18,5 @@ First version, used for one application's releases and test deployments.
   configuration for that push, instead of needing a Docker login on the computer.
 - `app running` · `ready` · `reloaded` · `stopped` · `errors`: run the application on the developer's computer
   from `.wannabe/<context>/app.yaml`, wait for its readiness URL, stop only what wannabe started, and refuse
-  (exit 3) when something else, such as an IDE's run, holds the port.
+  (exit 3) when something else, such as an IDE's run, holds the port. With `spec.reloadCommand`, `reloaded`
+  restarts the app in place and waits for its readiness URL to go down and come back.

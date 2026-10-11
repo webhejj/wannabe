@@ -6,13 +6,16 @@
  * the application's log since that start.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readValue } from "../src/config.ts";
 import { capture, die, get, getList, getOptional, projectDir, say, wannabeDir } from "./plugin.ts";
 
 export interface App {
   context: string;
   command: string[];
+  /** Run instead of a stop and a start by app reloaded, when set; the app restarts itself in place. */
+  reloadCommand?: string[];
   readiness: string;
   liveness?: string;
   /** The port the readiness URL is on, where the application listens. */
@@ -23,6 +26,8 @@ export interface App {
   stateDir: string;
   pidFile: string;
   logFile: string;
+  /** Where in the log the last start or reload began. */
+  offsetFile: string;
 }
 
 /** The context's application; exit 3 when the context has no app.yaml. */
@@ -41,6 +46,7 @@ export async function app(context: string): Promise<App> {
   return {
     context,
     command: await getList(file, "spec.command"),
+    reloadCommand: ((await readValue(wannabeDir, file, "spec.reloadCommand")) as unknown[] | undefined)?.map(String),
     readiness,
     liveness: await getOptional(file, "spec.liveness"),
     port,
@@ -49,6 +55,7 @@ export async function app(context: string): Promise<App> {
     stateDir,
     pidFile: join(stateDir, "app.pid"),
     logFile: join(stateDir, "app.log"),
+    offsetFile: join(stateDir, "app.offset"),
   };
 }
 
@@ -97,6 +104,7 @@ export function start(a: App): number {
   if (!child.pid) die(1, `could not start: ${a.command.join(" ")}`);
   child.unref();
   writeFileSync(a.pidFile, `${child.pid}\n`);
+  writeFileSync(a.offsetFile, "0\n");
   return child.pid;
 }
 
@@ -146,10 +154,13 @@ export async function stop(a: App, pid: number): Promise<boolean> {
 
 const ERROR = /\bERROR\b|^Caused by:|\bFAILED\b/;
 
-/** The log's error lines since the last start, colours stripped. */
+/** The log's error lines since the last start or reload, colours stripped. */
 export function errorLines(a: App): string[] {
   if (!existsSync(a.logFile)) return [];
-  return readFileSync(a.logFile, "utf8")
+  const offset = existsSync(a.offsetFile) ? Number(readFileSync(a.offsetFile, "utf8")) : 0;
+  return readFileSync(a.logFile)
+    .subarray(offset)
+    .toString("utf8")
     .replace(/\x1b\[[0-9;]*m/g, "")
     .split("\n")
     .filter((line) => ERROR.test(line));
@@ -178,6 +189,32 @@ export async function startAndWait(a: App): Promise<void> {
   const pid = start(a);
   const ready = await waitReady(a, pid);
   reportErrors(a, ready ? "Errors logged during startup:" : "Errors in the log:");
+  if (!ready) process.exit(1);
+  say(`Ready: ${a.readiness}`);
+  console.log(a.url);
+}
+
+/** How long a reload may take to take the app down before wannabe decides it did not restart. */
+const RESTART_SEEN_SECONDS = 10;
+
+/**
+ * Runs spec.reloadCommand and waits for the app to restart in place: its readiness URL stops answering, then
+ * answers again. The app keeps running what it ran when the command fails. Exits 1 on any failure.
+ */
+export async function reloadInPlace(a: App, pid: number, reloadCommand: string[]): Promise<void> {
+  writeFileSync(a.offsetFile, `${statSync(a.logFile).size}\n`);
+  say(`Reloading: ${reloadCommand.join(" ")}`);
+  const code = await Bun.spawn(reloadCommand, { cwd: projectDir, stdio: ["ignore", 2, 2], env: process.env }).exited;
+  if (code !== 0) die(1, `the reload command failed (exit ${code}); the app still runs what it ran before`);
+
+  const deadline = Date.now() + RESTART_SEEN_SECONDS * 1000;
+  while (await answers(a.readiness)) {
+    if (Date.now() > deadline) die(1, `no restart seen: ${a.readiness} answered for ${RESTART_SEEN_SECONDS}s after the reload command`);
+    await Bun.sleep(200);
+  }
+  say("Restarting");
+  const ready = await waitReady(a, pid);
+  reportErrors(a, ready ? "Errors logged during the reload:" : "Errors in the log:");
   if (!ready) process.exit(1);
   say(`Ready: ${a.readiness}`);
   console.log(a.url);

@@ -53,7 +53,8 @@ kind: Application
 metadata:
   name: my-app
 spec:
-  command: [./gradlew, bootRun]
+  command: [./gradlew, bootRun, "--args=--spring.devtools.restart.trigger-file=reloadtrigger"]
+  reloadCommand: [sh, -c, "./gradlew classes -q && date > build/resources/main/reloadstamp && date > build/resources/main/reloadtrigger"]
   readiness: http://localhost:8080/actuator/health/readiness
   liveness: http://localhost:8080/actuator/health/liveness
   startTimeoutSeconds: 300
@@ -61,7 +62,8 @@ spec:
 
 | Field                      | Used by                         | Meaning                                                                                                                                                                       |
 |----------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spec.command`             | `running`, `reloaded`           | The command that runs the application, as a list, from the project root. It must build what changed itself, as `bootRun` does: `reloaded` is a stop and a start             |
+| `spec.command`             | `running`, `reloaded`           | The command that runs the application, as a list, from the project root. It must build what changed itself, as `bootRun` does: without `reloadCommand`, `reloaded` is a stop and a start |
+| `spec.reloadCommand`       | `reloaded`                      | Optional. A command that makes the running application restart itself in place, such as compiling and touching a Spring devtools trigger file. `reloaded` runs it, then waits for the readiness URL to stop answering and answer again. When the command fails (a compile error), the application keeps running what it ran before; when the readiness URL never stops answering within 10 seconds, `reloaded` fails with "no restart seen" |
 | `spec.readiness`           | `running`, `reloaded`, `ready`  | A URL that answers 200 once the application serves. Its port is where the application listens: wannabe refuses to start a second one when something else is listening there |
 | `spec.liveness`            | `ready`                         | Optional. A URL that answers 200 while the application is alive; only used to say why it is not ready                                                                        |
 | `spec.startTimeoutSeconds` | `running`, `reloaded`           | How long to wait for readiness; 300 when left out                                                                                                                             |
@@ -71,9 +73,9 @@ The commands:
 ```
 wannabe app running --to local    # start in the background and wait until ready; prints the URL. Again: nothing changes
 wannabe app ready --in local      # exit 0 when ready, 1 when not, saying whether it runs at all
-wannabe app reloaded --to local   # stop and start again, so it runs the current code
+wannabe app reloaded --to local   # run the reloadCommand, or stop and start again, so it runs the current code
 wannabe app stopped --to local    # stop what wannabe started; anything else on the port is left alone
-wannabe app errors --in local     # the error lines logged since the last start, on stdout
+wannabe app errors --in local     # the error lines logged since the last start or reload, on stdout
 ```
 
 wannabe only stops what it started. When something else listens on the port, such as a run from the IDE,
