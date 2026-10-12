@@ -6,7 +6,7 @@
 // database spec.name WITH (FORCE), creates it again, owned by the user spec.psql connects as, and streams
 // the dump into it through spec.psql. A running app reconnects, and does not run its migrations again.
 // Errors psql reports during the restore are counted and shown; they do not stop it, as a plain dump can
-// carry harmless ones. The context must allow "database restored" in database.yaml.
+// carry harmless ones. The context must allow "restored" in database.yaml.
 import { basename, isAbsolute, join } from "node:path";
 import { existsSync } from "node:fs";
 import { complete, databaseName, dumpDir, dumpName, localDumps, psqlRestore, psqlScript, requireAllowed, shown, tool } from "../../lib/database.ts";
@@ -26,7 +26,7 @@ if (args.values["--dump"]) {
   if (!existsSync(dump)) die(1, `${given} not found`);
 } else {
   const dir = await dumpDir(args.context);
-  const newest = localDumps(dir, name)[0] ?? die(1, `no dump matching ${name.source} in ${shown(dir)}; wannabe dump fetched first`);
+  const newest = localDumps(dir, name)[0] ?? die(1, `no dump matching ${name.source} in ${shown(dir)}; wannabe database dump fetched first`);
   dump = join(dir, newest);
 }
 if (!complete(dump)) die(1, `${shown(dump)} is not a complete dump`);

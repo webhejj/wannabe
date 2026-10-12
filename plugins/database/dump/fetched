@@ -6,8 +6,8 @@
 // must allow "dump fetched". Every copy is checked (gzip -t for .gz) before it takes its name, so an
 // incomplete dump is never left there. Without --file, an incomplete newest dump falls back to the one
 // before, up to spec.dumps.maxTries (4); with --file, it fails instead.
-import { dumpDir, dumpName, dumpSource, fetchDump, requireAllowed, shown, sourceDumps } from "../../lib/database.ts";
-import { die, getOptional, parseArgs, say } from "../../lib/plugin.ts";
+import { dumpDir, dumpName, dumpSource, fetchDump, requireAllowed, shown, sourceDumps } from "../../../lib/database.ts";
+import { die, getOptional, parseArgs, say } from "../../../lib/plugin.ts";
 
 const args = parseArgs(process.argv.slice(2), { options: ["--file"] });
 const from = args.contexts["--from"] ?? die(2, "fetch from which context? --from <context>");

@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // wannabe: --to <context> [--dump <file>] [--dry-run] — restore the context's database and apply the pending migrations, one straight after the other
 //
-// database restored, then flyway applied. One command, so nothing starts the app in between: a restore
+// database restored, then database flyway applied. One command, so nothing starts the app in between: a restore
 // brings back the source's schema history, and an app starting then would apply the branch's migrations
-// itself. The context must allow "database refreshed" in database.yaml, as well as both steps.
+// itself. The context must allow "refreshed" in database.yaml, as well as both steps.
 import { requireAllowed } from "../../lib/database.ts";
 import { parseArgs, step } from "../../lib/plugin.ts";
 
@@ -11,4 +11,4 @@ const args = parseArgs(process.argv.slice(2), { options: ["--dump"] });
 await requireAllowed(args.context);
 const dump = args.values["--dump"] ? ["--dump", args.values["--dump"]] : [];
 await step("database", "restored", "--to", args.context, ...dump);
-await step("flyway", "applied", "--to", args.context);
+await step("database", "flyway", "applied", "--to", args.context);

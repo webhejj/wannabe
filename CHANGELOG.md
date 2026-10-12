@@ -20,8 +20,8 @@ First version, used for one application's releases and test deployments.
   from `.wannabe/<context>/app.yaml`, wait for its readiness URL, stop only what wannabe started, and refuse
   (exit 3) when something else, such as an IDE's run, holds the port. With `spec.reloadCommand`, `reloaded`
   restarts the app in place and waits for its readiness URL to go down and come back.
-- `dump fetched`, `database restored` · `refreshed`, `flyway applied` · `listed` · `validated` · `repaired`, from
+- `database restored` · `refreshed` · `dump fetched` · `flyway applied` · `listed` · `validated` · `repaired`, from
   `.wannabe/<context>/database.yaml`: the project says how psql and Flyway reach its database; wannabe picks the
   newest complete dump by name, restores it, and answers 3 for any change the context does not `allow`.
-- `sql applied` · `package applied`: SQL files in the order given, or a directory's in file-name order, each with
+- `database sql applied` · `package applied`: SQL files in the order given, or a directory's in file-name order, each with
   `ON_ERROR_STOP=1`, stopping at the first failing file and naming the ones not run.

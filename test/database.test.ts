@@ -25,10 +25,10 @@ function setup(share: Record<string, string>, localAllow = "[dump fetched]"): st
   for (const [file, content] of Object.entries(share)) writeFileSync(join(project, "share", file), Buffer.from(content, "latin1"));
   return project;
 }
-const fetched = (project: string, ...more: string[]) => wannabe(project, ["dump", "fetched", "--from", "prod", "--to", "local", ...more]);
+const fetched = (project: string, ...more: string[]) => wannabe(project, ["database", "dump", "fetched", "--from", "prod", "--to", "local", ...more]);
 const kept = (project: string) => (existsSync(join(project, "data/dumps")) ? readdirSync(join(project, "data/dumps")).sort() : []);
 
-describe("dump fetched", () => {
+describe("database dump fetched", () => {
   test("fetches the newest dated dump, never -latest, and prints its path", () => {
     const project = setup({ "app-20260101-100000.sql.gz": dump(), "app-20260102-100000.sql.gz": dump(), "app-latest.sql.gz": dump() });
     const run = fetched(project);
@@ -73,7 +73,7 @@ describe("dump fetched", () => {
 
   test("a dry run says what it would fetch and fetches nothing", () => {
     const project = setup({ "app-20260101-100000.sql.gz": dump(), "app-20260102-100000.sql.gz": dump() });
-    const run = wannabe(project, ["dump", "fetched", "--from", "prod", "--to", "local"], "wannatry");
+    const run = wannabe(project, ["database", "dump", "fetched", "--from", "prod", "--to", "local"], "wannatry");
     expect(run.code).toBe(0);
     expect(run.stderr).toContain("fetch app-20260102-100000.sql.gz from");
     expect(kept(project)).toEqual([]);
@@ -82,17 +82,17 @@ describe("dump fetched", () => {
   test("answers 3 for a context that does not allow it, or has no database.yaml", () => {
     const project = setup({ "app-20260101-100000.sql.gz": dump() }, "[]");
     expect(fetched(project).code).toBe(3);
-    const intoProd = wannabe(project, ["dump", "fetched", "--from", "prod", "--to", "prod"]);
+    const intoProd = wannabe(project, ["database", "dump", "fetched", "--from", "prod", "--to", "prod"]);
     expect(intoProd.code).toBe(3);
     expect(intoProd.stderr).toContain("the operator applies SQL by hand");
-    const intoTest = wannabe(project, ["dump", "fetched", "--from", "prod", "--to", "test"]);
+    const intoTest = wannabe(project, ["database", "dump", "fetched", "--from", "prod", "--to", "test"]);
     expect(intoTest.code).toBe(3);
     expect(intoTest.stderr).toContain("no database.yaml");
   });
 
   test("needs both contexts", () => {
     const project = setup({});
-    expect(wannabe(project, ["dump", "fetched", "--from", "prod"]).code).toBe(2);
+    expect(wannabe(project, ["database", "dump", "fetched", "--from", "prod"]).code).toBe(2);
   });
 });
 
@@ -114,7 +114,7 @@ exit 0
 
 function dbSetup(
   dumps: Record<string, string>,
-  allow = "[database restored, database refreshed, flyway applied, flyway repaired, sql applied, package applied]",
+  allow = "[restored, refreshed, flyway applied, flyway repaired, sql applied, package applied]",
 ): string {
   const project = setup({}, allow);
   write(project, {
@@ -172,7 +172,7 @@ describe("database restored", () => {
   test("no dump is a failure that says to fetch one", () => {
     const run = wannabe(dbSetup({}), ["database", "restored", "--to", "local"]);
     expect(run.code).toBe(1);
-    expect(run.stderr).toContain("wannabe dump fetched first");
+    expect(run.stderr).toContain("wannabe database dump fetched first");
   });
 
   test("a dry run names the dump and runs nothing", () => {
@@ -194,31 +194,31 @@ describe("database restored", () => {
   });
 });
 
-describe("flyway", () => {
+describe("database flyway", () => {
   test("applied runs migrate; listed prints info on stdout; validated fails with Flyway", () => {
     const project = dbSetup({});
-    expect(wannabe(project, ["flyway", "applied", "--to", "local"]).code).toBe(0);
-    const listed = wannabe(project, ["flyway", "listed", "--in", "local"]);
+    expect(wannabe(project, ["database", "flyway", "applied", "--to", "local"]).code).toBe(0);
+    const listed = wannabe(project, ["database", "flyway", "listed", "--in", "local"]);
     expect(listed.stdout).toBe("Schema version: 82\n");
-    expect(wannabe(project, ["flyway", "validated", "--in", "local"]).code).toBe(0);
+    expect(wannabe(project, ["database", "flyway", "validated", "--in", "local"]).code).toBe(0);
     write(project, { invalid: "" });
-    expect(wannabe(project, ["flyway", "validated", "--in", "local"]).code).toBe(1);
-    expect(wannabe(project, ["flyway", "repaired", "--to", "local"]).code).toBe(0);
+    expect(wannabe(project, ["database", "flyway", "validated", "--in", "local"]).code).toBe(1);
+    expect(wannabe(project, ["database", "flyway", "repaired", "--to", "local"]).code).toBe(0);
     expect(calls(project)).toBe("flyway migrate\n--\nflyway info\n--\nflyway validate\n--\nflyway validate\n--\nflyway repair\n--\n");
   });
 
   test("applied and repaired answer 3 where not allowed; reading needs only a database.yaml", () => {
     const project = dbSetup({}, "[]");
-    expect(wannabe(project, ["flyway", "applied", "--to", "local"]).code).toBe(3);
-    expect(wannabe(project, ["flyway", "repaired", "--to", "local"]).code).toBe(3);
-    expect(wannabe(project, ["flyway", "listed", "--in", "local"]).code).toBe(0);
-    expect(wannabe(project, ["flyway", "listed", "--in", "test"]).code).toBe(3);
-    expect(wannabe(project, ["flyway", "listed", "--in", "prod"]).code).toBe(3);
+    expect(wannabe(project, ["database", "flyway", "applied", "--to", "local"]).code).toBe(3);
+    expect(wannabe(project, ["database", "flyway", "repaired", "--to", "local"]).code).toBe(3);
+    expect(wannabe(project, ["database", "flyway", "listed", "--in", "local"]).code).toBe(0);
+    expect(wannabe(project, ["database", "flyway", "listed", "--in", "test"]).code).toBe(3);
+    expect(wannabe(project, ["database", "flyway", "listed", "--in", "prod"]).code).toBe(3);
   });
 
   test("a dry run of applied runs nothing", () => {
     const project = dbSetup({});
-    const run = wannabe(project, ["flyway", "applied", "--to", "local"], "wannatry");
+    const run = wannabe(project, ["database", "flyway", "applied", "--to", "local"], "wannatry");
     expect(run.stderr).toContain("dry run: bin/flyway migrate");
     expect(calls(project)).toBe("");
   });
@@ -239,17 +239,17 @@ describe("database refreshed", () => {
   });
 
   test("answers 3 unless allowed itself", () => {
-    const project = dbSetup({ "app-20260101-100000.sql.gz": dump() }, "[database restored, flyway applied]");
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump() }, "[restored, flyway applied]");
     expect(wannabe(project, ["database", "refreshed", "--to", "local"]).code).toBe(3);
     expect(calls(project)).toBe("");
   });
 });
 
-describe("sql applied", () => {
+describe("database sql applied", () => {
   test("applies the files in the order given, with ON_ERROR_STOP, showing psql's notices", () => {
     const project = dbSetup({});
     write(project, { "b.sql": "select 'b'; notice\n", "a.sql": "select 'a';\n" });
-    const run = wannabe(project, ["sql", "applied", "--to", "local", "b.sql", "a.sql"]);
+    const run = wannabe(project, ["database", "sql", "applied", "--to", "local", "b.sql", "a.sql"]);
     expect(run.code).toBe(0);
     expect(run.stderr).toContain("NOTICE:  42 rows checked");
     expect(run.stderr).toContain("Applied 2 file(s)");
@@ -261,7 +261,7 @@ describe("sql applied", () => {
   test("stops at the first failing file and names the ones not run", () => {
     const project = dbSetup({});
     write(project, { "1.sql": "one;\n", "2.sql": "boom;\n", "3.sql": "three;\n", "4.sql": "four;\n" });
-    const run = wannabe(project, ["sql", "applied", "--to", "local", "1.sql", "2.sql", "3.sql", "4.sql"]);
+    const run = wannabe(project, ["database", "sql", "applied", "--to", "local", "1.sql", "2.sql", "3.sql", "4.sql"]);
     expect(run.code).toBe(1);
     expect(run.stderr).toContain("FAILED: 2.sql (psql exit 3)");
     expect(run.stderr).toContain("Not run, 2 of 4:\n  3.sql\n  4.sql");
@@ -271,36 +271,36 @@ describe("sql applied", () => {
   test("applies nothing when a file is missing, and needs at least one", () => {
     const project = dbSetup({});
     write(project, { "1.sql": "one;\n" });
-    expect(wannabe(project, ["sql", "applied", "--to", "local", "1.sql", "nope.sql"]).code).toBe(1);
-    expect(wannabe(project, ["sql", "applied", "--to", "local"]).code).toBe(2);
+    expect(wannabe(project, ["database", "sql", "applied", "--to", "local", "1.sql", "nope.sql"]).code).toBe(1);
+    expect(wannabe(project, ["database", "sql", "applied", "--to", "local"]).code).toBe(2);
     expect(calls(project)).toBe("");
   });
 
   test("reads files from where wannabe is run, not the project root", () => {
     const project = dbSetup({});
     write(project, { "sub/x.sql": "from sub;\n" });
-    expect(wannabe(join(project, "sub"), ["sql", "applied", "--to", "local", "x.sql"]).code).toBe(0);
+    expect(wannabe(join(project, "sub"), ["database", "sql", "applied", "--to", "local", "x.sql"]).code).toBe(0);
     expect(calls(project)).toContain("from sub;");
   });
 
   test("a dry run lists what it would apply and applies nothing; 3 where not allowed", () => {
     const project = dbSetup({}, "[]");
     write(project, { "1.sql": "one;\n" });
-    expect(wannabe(project, ["sql", "applied", "--to", "local", "1.sql"]).code).toBe(3);
+    expect(wannabe(project, ["database", "sql", "applied", "--to", "local", "1.sql"]).code).toBe(3);
     const allowed = dbSetup({});
     write(allowed, { "1.sql": "one;\n" });
-    const dry = wannabe(allowed, ["sql", "applied", "--to", "local", "1.sql"], "wannatry");
+    const dry = wannabe(allowed, ["database", "sql", "applied", "--to", "local", "1.sql"], "wannatry");
     expect(dry.code).toBe(0);
     expect(dry.stderr).toContain("dry run: bin/psql -U app -d app -v ON_ERROR_STOP=1 < 1.sql");
     expect(calls(allowed)).toBe("");
   });
 });
 
-describe("package applied", () => {
+describe("database package applied", () => {
   test("applies the directory's .sql files in file-name order", () => {
     const project = dbSetup({});
     write(project, { "pkg/02-b.sql": "two;\n", "pkg/01-a.sql": "one;\n", "pkg/10-c.sql": "ten;\n", "pkg/README.md": "not sql" });
-    const run = wannabe(project, ["package", "applied", "--to", "local", "pkg"]);
+    const run = wannabe(project, ["database", "package", "applied", "--to", "local", "pkg"]);
     expect(run.code).toBe(0);
     expect(calls(project).match(/^(one|two|ten);$/gm)).toEqual(["one;", "two;", "ten;"]);
   });
@@ -308,7 +308,7 @@ describe("package applied", () => {
   test("stops at the first failure, naming the files not run", () => {
     const project = dbSetup({});
     write(project, { "pkg/01.sql": "one;\n", "pkg/02.sql": "boom;\n", "pkg/03.sql": "three;\n" });
-    const run = wannabe(project, ["package", "applied", "--to", "local", "pkg"]);
+    const run = wannabe(project, ["database", "package", "applied", "--to", "local", "pkg"]);
     expect(run.code).toBe(1);
     expect(run.stderr).toContain("Not run, 1 of 3:\n  pkg/03.sql");
   });
@@ -316,15 +316,15 @@ describe("package applied", () => {
   test("an empty or missing package is an error", () => {
     const project = dbSetup({});
     write(project, { "empty/README.md": "" });
-    expect(wannabe(project, ["package", "applied", "--to", "local", "empty"]).code).toBe(1);
-    expect(wannabe(project, ["package", "applied", "--to", "local", "missing"]).code).toBe(1);
+    expect(wannabe(project, ["database", "package", "applied", "--to", "local", "empty"]).code).toBe(1);
+    expect(wannabe(project, ["database", "package", "applied", "--to", "local", "missing"]).code).toBe(1);
     expect(calls(project)).toBe("");
   });
 
   test("answers 3 where only sql applied is allowed", () => {
     const project = dbSetup({}, "[sql applied]");
     write(project, { "pkg/01.sql": "one;\n" });
-    expect(wannabe(project, ["package", "applied", "--to", "local", "pkg"]).code).toBe(3);
-    expect(wannabe(project, ["sql", "applied", "--to", "local", "pkg/01.sql"]).code).toBe(0);
+    expect(wannabe(project, ["database", "package", "applied", "--to", "local", "pkg"]).code).toBe(3);
+    expect(wannabe(project, ["database", "sql", "applied", "--to", "local", "pkg/01.sql"]).code).toBe(0);
   });
 });

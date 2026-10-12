@@ -8,11 +8,11 @@
 // is understood. The context must allow "package applied" in database.yaml.
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { applySql, requireAllowed } from "../../lib/database.ts";
-import { die, parseArgs } from "../../lib/plugin.ts";
+import { applySql, requireAllowed } from "../../../lib/database.ts";
+import { die, parseArgs } from "../../../lib/plugin.ts";
 
 const args = parseArgs(process.argv.slice(2), { positional: true });
-if (args.rest.length !== 1) die(2, "which package? wannabe package applied --to <context> <dir>");
+if (args.rest.length !== 1) die(2, "which package? wannabe database package applied --to <context> <dir>");
 await requireAllowed(args.context);
 const dir = args.rest[0];
 let isDir = false;

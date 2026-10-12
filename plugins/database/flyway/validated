@@ -5,8 +5,8 @@
 // running Flyway against that database. Changes nothing, so a dry run runs it too.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { flyway } from "../../lib/database.ts";
-import { die, parseArgs, wannabeDir } from "../../lib/plugin.ts";
+import { flyway } from "../../../lib/database.ts";
+import { die, parseArgs, wannabeDir } from "../../../lib/plugin.ts";
 
 const args = parseArgs();
 if (!existsSync(join(wannabeDir, args.context, "database.yaml"))) die(3, `context '${args.context}' has no database.yaml`);

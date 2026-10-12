@@ -9,8 +9,8 @@ wannabe deployed --to test                    # deployment synced, pulled, runni
 wannabe deployment committed --to test --push # once test is verified
 wannatry deployed --to test                   # the same, as a dry run
 wannabe app running --to local                # start the app on this computer, wait until it is ready
-wannabe dump fetched --from prod --to local   # the newest complete prod dump
-wannabe database refreshed --to local         # restore it, then apply the migrations
+wannabe database dump fetched --from prod --to local   # the newest complete prod dump
+wannabe database refreshed --to local                  # restore it, then apply the migrations
 ```
 
 Every step is also its own command, so a chain that fails half-way is continued by hand from where it stopped.

@@ -100,7 +100,7 @@ spec:
   dumps:
     dir: data/dumps
     name: '^myapp-\d{8}-\d{6}\.sql\.gz$'
-  allow: [dump fetched, database restored, database refreshed, flyway applied, flyway repaired, sql applied, package applied]
+  allow: [dump fetched, restored, refreshed, flyway applied, flyway repaired, sql applied, package applied]
 ```
 
 ```yaml
@@ -120,29 +120,31 @@ spec:
 
 | Field                 | Used by                                          | Meaning                                                                                                                                                                                                |
 |-----------------------|--------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spec.name`           | `database restored`, `sql applied`, `package applied` | The context's database: what a restore drops and creates, and where SQL is applied                                                                                                                |
-| `spec.psql`           | `database restored`, `sql applied`, `package applied` | How psql is run against the context's database, as a list. wannabe adds `-d <database>` and its own options, and gives the SQL on stdin, so a psql inside a container works as well as one on the computer |
+| `spec.name`           | `restored`, `sql applied`, `package applied`     | The context's database: what a restore drops and creates, and where SQL is applied                                                                                                                |
+| `spec.psql`           | `restored`, `sql applied`, `package applied`     | How psql is run against the context's database, as a list. wannabe adds `-d <database>` and its own options, and gives the SQL on stdin, so a psql inside a container works as well as one on the computer |
 | `spec.flyway`         | `flyway …`                                       | How Flyway is run against the context's database, as a list. wannabe adds the Flyway command: `migrate`, `info`, `validate`, `repair`                                                                    |
-| `spec.dumps.dir`      | `database restored`, `dump fetched` (as `--to`)  | Where the context's dumps are kept                                                                                                                                                                     |
-| `spec.dumps.name`     | `database restored`, `dump fetched`              | A regular expression a dump's file name must match. Names sort by their timestamp, so the newest is the last by name. A copy that is not dated, such as a `-latest` file, must not match                 |
+| `spec.dumps.dir`      | `restored`, `dump fetched` (as `--to`)           | Where the context's dumps are kept                                                                                                                                                                     |
+| `spec.dumps.name`     | `restored`, `dump fetched`                       | A regular expression a dump's file name must match. Names sort by their timestamp, so the newest is the last by name. A copy that is not dated, such as a `-latest` file, must not match                 |
 | `spec.dumps.from`     | `dump fetched` (as `--from`)                     | Where the context's dumps are fetched from: `host:dir` over ssh, or a directory                                                                                                                        |
 | `spec.dumps.maxTries` | `dump fetched`                                   | How many of the newest dumps to try when the newest is incomplete; 4 when left out                                                                                                                     |
-| `spec.allow`          | every command that changes something             | The commands allowed to change this context, by name. Anything else answers with exit code 3                                                                                                           |
+| `spec.allow`          | every command that changes something             | The commands allowed to change this context, named within the `database` group: `restored`, `dump fetched`. Anything else answers with exit code 3                                                     |
 | `spec.otherwise`      | the same                                         | Who does it instead, or why not: the message of that exit code 3                                                                                                                                       |
 
 The commands:
 
 ```
-wannabe dump fetched --from prod --to local   # the newest complete dump into local's dump directory; prints its path
-wannabe database restored --to local          # replace the database with the newest dump, or --dump <file>; prints the dump's path
-wannabe flyway applied --to local             # apply the pending migrations
-wannabe database refreshed --to local         # restored, then flyway applied, one straight after the other
-wannabe flyway listed --in local              # applied and pending migrations, on stdout
-wannabe flyway validated --in local           # check the applied migrations against their files
-wannabe flyway repaired --to local            # repair the schema history after a migration was changed
-wannabe sql applied --to local a.sql b.sql    # apply SQL files in the order given, stopping at the first failure
-wannabe package applied --to local pkg/sql    # every .sql file in a directory, in file-name order, the same way
+wannabe database dump fetched --from prod --to local   # the newest complete dump into local's dump directory; prints its path
+wannabe database restored --to local                   # replace the database with the newest dump, or --dump <file>; prints its path
+wannabe database flyway applied --to local             # apply the pending migrations
+wannabe database refreshed --to local                  # restored, then flyway applied, one straight after the other
+wannabe database flyway listed --in local              # applied and pending migrations, on stdout
+wannabe database flyway validated --in local           # check the applied migrations against their files
+wannabe database flyway repaired --to local            # repair the schema history after a migration was changed
+wannabe database sql applied --to local a.sql b.sql    # apply SQL files in the order given, stopping at the first failure
+wannabe database package applied --to local pkg/sql    # every .sql file in a directory, in file-name order, the same way
 ```
+
+Every database command is in the `database` group, so `wannabe helped database` lists them all.
 
 What wannabe keeps to, whatever the project:
 

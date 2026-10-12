@@ -3,8 +3,8 @@
 //
 // Runs flyway repair through spec.flyway in .wannabe/<context>/database.yaml, the project's own way of
 // running Flyway against that database. The context must allow "flyway repaired" in database.yaml.
-import { flyway, requireAllowed, tool } from "../../lib/database.ts";
-import { parseArgs, say } from "../../lib/plugin.ts";
+import { flyway, requireAllowed, tool } from "../../../lib/database.ts";
+import { parseArgs, say } from "../../../lib/plugin.ts";
 
 const args = parseArgs();
 await requireAllowed(args.context);

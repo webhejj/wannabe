@@ -16,7 +16,8 @@ export async function requireAllowed(context: string): Promise<void> {
     die(3, `context '${context}' has no database.yaml; wannabe does not touch its database`);
   }
   const allow = ((await readValue(wannabeDir, `${context}/database`, "spec.allow")) as unknown[] | undefined) ?? [];
-  if (allow.map(String).includes(commandName)) return;
+  // Entries name the command within the database group: "restored", "dump fetched", "sql applied".
+  if (allow.map(String).includes(commandName.replace(/^database /, ""))) return;
   const otherwise = await getOptional(`${context}/database`, "spec.otherwise");
   die(3, `not allowed in '${context}'${otherwise ? `: ${otherwise}` : ` (spec.allow in .wannabe/${context}/database.yaml)`}`);
 }
