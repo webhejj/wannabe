@@ -1,0 +1,13 @@
+#!/usr/bin/env bun
+// wannabe: --in <context> — check the applied migrations against the migration files
+//
+// Runs flyway validate through spec.flyway in .wannabe/<context>/database.yaml, the project's own way of
+// running Flyway against that database. Changes nothing, so a dry run runs it too.
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { flyway } from "../../lib/database.ts";
+import { die, parseArgs, wannabeDir } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+if (!existsSync(join(wannabeDir, args.context, "database.yaml"))) die(3, `context '${args.context}' has no database.yaml`);
+await flyway(args.context, "validate", "stderr");

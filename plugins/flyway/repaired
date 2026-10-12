@@ -1,0 +1,16 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] — repair the schema history after a migration was changed, so validated passes again
+//
+// Runs flyway repair through spec.flyway in .wannabe/<context>/database.yaml, the project's own way of
+// running Flyway against that database. The context must allow "flyway repaired" in database.yaml.
+import { flyway, requireAllowed, tool } from "../../lib/database.ts";
+import { parseArgs, say } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+await requireAllowed(args.context);
+if (args.dryRun) {
+  say(`dry run: ${(await tool(args.context, "flyway")).join(" ")} repair`);
+  process.exit(0);
+}
+
+await flyway(args.context, "repair", "stderr");
