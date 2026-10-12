@@ -1,0 +1,46 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dump <file>] [--dry-run] — replace the context's database with a dump: the newest in its dump directory, or --dump; prints the dump's path
+//
+// Picks the newest file in spec.dumps.dir matching spec.dumps.name, by name and never by ls, or takes
+// --dump, which must match the name too: a -latest copy never does. Checks it is complete, drops the
+// database spec.name WITH (FORCE), creates it again, owned by the user spec.psql connects as, and streams
+// the dump into it through spec.psql. A running app reconnects, and does not run its migrations again.
+// Errors psql reports during the restore are counted and shown; they do not stop it, as a plain dump can
+// carry harmless ones. The context must allow "database restored" in database.yaml.
+import { basename, isAbsolute, join } from "node:path";
+import { existsSync } from "node:fs";
+import { complete, databaseName, dumpDir, dumpName, localDumps, psqlRestore, psqlScript, requireAllowed, shown, tool } from "../../lib/database.ts";
+import { die, parseArgs, projectDir, say } from "../../lib/plugin.ts";
+
+const args = parseArgs(process.argv.slice(2), { options: ["--dump"] });
+await requireAllowed(args.context);
+const psql = await tool(args.context, "psql");
+const database = await databaseName(args.context);
+const name = await dumpName(args.context);
+
+let dump: string;
+if (args.values["--dump"]) {
+  const given = args.values["--dump"];
+  dump = isAbsolute(given) ? given : join(projectDir, given);
+  if (!name.test(basename(dump))) die(2, `'${basename(dump)}' does not match spec.dumps.name (${name.source})`);
+  if (!existsSync(dump)) die(1, `${given} not found`);
+} else {
+  const dir = await dumpDir(args.context);
+  const newest = localDumps(dir, name)[0] ?? die(1, `no dump matching ${name.source} in ${shown(dir)}; wannabe dump fetched first`);
+  dump = join(dir, newest);
+}
+if (!complete(dump)) die(1, `${shown(dump)} is not a complete dump`);
+
+const reset = `DROP DATABASE IF EXISTS "${database}" WITH (FORCE);\nCREATE DATABASE "${database}";\n`;
+if (args.dryRun) {
+  say(`dry run: restore ${shown(dump)} into ${database} in '${args.context}'`);
+  say(`dry run: ${psql.join(" ")} -d postgres <<< ${reset.replaceAll("\n", " ").trim()}`);
+  say(`dry run: ${dump.endsWith(".gz") ? "gzip -dc" : "cat"} ${shown(dump)} | ${psql.join(" ")} -d ${database}`);
+  process.exit(0);
+}
+
+say(`Restoring ${shown(dump)} into ${database} in '${args.context}'`);
+await psqlScript(psql, "postgres", reset);
+const errors = await psqlRestore(psql, database, dump);
+say(errors.length === 0 ? "Restored, without errors" : `Restored; psql reported ${errors.length} error(s), above`);
+console.log(shown(dump));

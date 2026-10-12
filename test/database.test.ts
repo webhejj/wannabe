@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { scratch, wannabe, write } from "./helpers.ts";
 
@@ -93,5 +93,150 @@ describe("dump fetched", () => {
   test("needs both contexts", () => {
     const project = setup({});
     expect(wannabe(project, ["dump", "fetched", "--from", "prod"]).code).toBe(2);
+  });
+});
+
+/** A psql that records its arguments and stdin in calls.log; a statement containing "boom" is an error. */
+const PSQL = `#!/bin/sh
+input=$(cat)
+printf '%s\\n' "psql $*" "$input" "--" >> calls.log
+case "$input" in *boom*) echo "psql:<stdin>:1: ERROR:  boom" >&2 ;; esac
+case "$input" in *fatal*) exit 2 ;; esac
+exit 0
+`;
+const FLYWAY = `#!/bin/sh
+printf '%s\\n' "flyway $*" "--" >> calls.log
+[ "$1" = info ] && echo "Schema version: 82"
+[ "$1" = validate ] && [ -f invalid ] && { echo "validate failed" >&2; exit 1; }
+exit 0
+`;
+
+function dbSetup(dumps: Record<string, string>, allow = "[database restored, database refreshed, flyway applied, flyway repaired]"): string {
+  const project = setup({}, allow);
+  write(project, {
+    "bin/psql": PSQL,
+    "bin/flyway": FLYWAY,
+    ".wannabe/local/database.yaml":
+      `kind: Database\nspec:\n  name: app\n  psql: [bin/psql, -U, app]\n  flyway: [bin/flyway]\n` +
+      `  dumps:\n    dir: data/dumps\n    name: ${NAME}\n  allow: ${allow}\n`,
+  });
+  mkdirSync(join(project, "data/dumps"), { recursive: true });
+  for (const [file, content] of Object.entries(dumps)) writeFileSync(join(project, "data/dumps", file), Buffer.from(content, "latin1"));
+  return project;
+}
+const calls = (project: string) => (existsSync(join(project, "calls.log")) ? readFileSync(join(project, "calls.log"), "utf8") : "");
+
+describe("database restored", () => {
+  test("drops and creates with ON_ERROR_STOP, then streams the newest dated dump in; prints its path", () => {
+    const project = dbSetup({
+      "app-20260101-100000.sql.gz": dump("old;\n"),
+      "app-20260102-100000.sql.gz": dump("create table t();\n"),
+      "app-latest.sql.gz": dump("latest;\n"),
+    });
+    const run = wannabe(project, ["database", "restored", "--to", "local"]);
+    expect(run.code).toBe(0);
+    expect(run.stdout).toBe("data/dumps/app-20260102-100000.sql.gz\n");
+    expect(calls(project)).toBe(
+      'psql -U app -d postgres -v ON_ERROR_STOP=1\nDROP DATABASE IF EXISTS "app" WITH (FORCE);\nCREATE DATABASE "app";\n--\n' +
+        "psql -U app -d app\ncreate table t();\n--\n",
+    );
+  });
+
+  test("counts and shows the errors psql reports, without stopping", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump("boom;\n") });
+    const run = wannabe(project, ["database", "restored", "--to", "local"]);
+    expect(run.code).toBe(0);
+    expect(run.stderr).toContain("ERROR:  boom");
+    expect(run.stderr).toContain("psql reported 1 error(s)");
+  });
+
+  test("fails when psql itself fails", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump("fatal;\n") });
+    expect(wannabe(project, ["database", "restored", "--to", "local"]).code).toBe(1);
+  });
+
+  test("--dump must match the dump name, exist and be complete", () => {
+    const project = dbSetup({ "app-latest.sql.gz": dump(), "app-20260101-100000.sql.gz": truncated() });
+    expect(wannabe(project, ["database", "restored", "--to", "local", "--dump", "data/dumps/app-latest.sql.gz"]).code).toBe(2);
+    expect(wannabe(project, ["database", "restored", "--to", "local", "--dump", "data/dumps/app-20990101-100000.sql.gz"]).code).toBe(1);
+    const incomplete = wannabe(project, ["database", "restored", "--to", "local", "--dump", "data/dumps/app-20260101-100000.sql.gz"]);
+    expect(incomplete.code).toBe(1);
+    expect(incomplete.stderr).toContain("not a complete dump");
+    expect(calls(project)).toBe("");
+  });
+
+  test("no dump is a failure that says to fetch one", () => {
+    const run = wannabe(dbSetup({}), ["database", "restored", "--to", "local"]);
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain("wannabe dump fetched first");
+  });
+
+  test("a dry run names the dump and runs nothing", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump() });
+    const run = wannabe(project, ["database", "restored", "--to", "local"], "wannatry");
+    expect(run.code).toBe(0);
+    expect(run.stderr).toContain("restore data/dumps/app-20260101-100000.sql.gz into app");
+    expect(run.stderr).toContain("DROP DATABASE");
+    expect(calls(project)).toBe("");
+  });
+
+  test("answers 3 where it is not allowed", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump() }, "[flyway applied]");
+    expect(wannabe(project, ["database", "restored", "--to", "local"]).code).toBe(3);
+    const prod = wannabe(project, ["database", "restored", "--to", "prod"]);
+    expect(prod.code).toBe(3);
+    expect(prod.stderr).toContain("the operator applies SQL by hand");
+    expect(calls(project)).toBe("");
+  });
+});
+
+describe("flyway", () => {
+  test("applied runs migrate; listed prints info on stdout; validated fails with Flyway", () => {
+    const project = dbSetup({});
+    expect(wannabe(project, ["flyway", "applied", "--to", "local"]).code).toBe(0);
+    const listed = wannabe(project, ["flyway", "listed", "--in", "local"]);
+    expect(listed.stdout).toBe("Schema version: 82\n");
+    expect(wannabe(project, ["flyway", "validated", "--in", "local"]).code).toBe(0);
+    write(project, { invalid: "" });
+    expect(wannabe(project, ["flyway", "validated", "--in", "local"]).code).toBe(1);
+    expect(wannabe(project, ["flyway", "repaired", "--to", "local"]).code).toBe(0);
+    expect(calls(project)).toBe("flyway migrate\n--\nflyway info\n--\nflyway validate\n--\nflyway validate\n--\nflyway repair\n--\n");
+  });
+
+  test("applied and repaired answer 3 where not allowed; reading needs only a database.yaml", () => {
+    const project = dbSetup({}, "[]");
+    expect(wannabe(project, ["flyway", "applied", "--to", "local"]).code).toBe(3);
+    expect(wannabe(project, ["flyway", "repaired", "--to", "local"]).code).toBe(3);
+    expect(wannabe(project, ["flyway", "listed", "--in", "local"]).code).toBe(0);
+    expect(wannabe(project, ["flyway", "listed", "--in", "test"]).code).toBe(3);
+    expect(wannabe(project, ["flyway", "listed", "--in", "prod"]).code).toBe(3);
+  });
+
+  test("a dry run of applied runs nothing", () => {
+    const project = dbSetup({});
+    const run = wannabe(project, ["flyway", "applied", "--to", "local"], "wannatry");
+    expect(run.stderr).toContain("dry run: bin/flyway migrate");
+    expect(calls(project)).toBe("");
+  });
+});
+
+describe("database refreshed", () => {
+  test("restores, then migrates", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump("create table t();\n") });
+    const run = wannabe(project, ["database", "refreshed", "--to", "local"]);
+    expect(run.code).toBe(0);
+    expect(calls(project)).toMatch(/^psql -U app -d postgres[\s\S]*psql -U app -d app\ncreate table t\(\);\n--\nflyway migrate\n--\n$/);
+  });
+
+  test("does not migrate when the restore fails", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump("fatal;\n") });
+    expect(wannabe(project, ["database", "refreshed", "--to", "local"]).code).toBe(1);
+    expect(calls(project)).not.toContain("flyway");
+  });
+
+  test("answers 3 unless allowed itself", () => {
+    const project = dbSetup({ "app-20260101-100000.sql.gz": dump() }, "[database restored, flyway applied]");
+    expect(wannabe(project, ["database", "refreshed", "--to", "local"]).code).toBe(3);
+    expect(calls(project)).toBe("");
   });
 });
