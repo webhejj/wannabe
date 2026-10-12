@@ -1,0 +1,45 @@
+#!/usr/bin/env bun
+// wannabe: --from <context> --to <context> [--file <name>] [--dry-run] — fetch a complete dump of one context's database into another's dump directory; prints its path
+//
+// Lists spec.dumps.from in the --from context's database.yaml ("host:dir" over ssh, or a directory) for
+// names matching spec.dumps.name, and copies the newest into spec.dumps.dir of the --to context, which
+// must allow "dump fetched". Every copy is checked (gzip -t for .gz) before it takes its name, so an
+// incomplete dump is never left there. Without --file, an incomplete newest dump falls back to the one
+// before, up to spec.dumps.maxTries (4); with --file, it fails instead.
+import { dumpDir, dumpName, dumpSource, fetchDump, requireAllowed, shown, sourceDumps } from "../../lib/database.ts";
+import { die, getOptional, parseArgs, say } from "../../lib/plugin.ts";
+
+const args = parseArgs(process.argv.slice(2), { options: ["--file"] });
+const from = args.contexts["--from"] ?? die(2, "fetch from which context? --from <context>");
+const to = args.contexts["--to"] ?? die(2, "fetch into which context? --to <context>");
+await requireAllowed(to);
+const source = await dumpSource(from);
+const name = await dumpName(from);
+const dir = await dumpDir(to);
+const where = source.host ? `${source.host}:${source.dir}` : source.dir;
+
+let candidates: string[];
+const file = args.values["--file"];
+if (file) {
+  if (!name.test(file)) die(2, `'${file}' does not match spec.dumps.name (${name.source})`);
+  candidates = [file];
+} else {
+  const maxTries = Number((await getOptional(`${from}/database`, "spec.dumps.maxTries")) ?? 4);
+  candidates = sourceDumps(source, name).slice(0, maxTries);
+  if (candidates.length === 0) die(1, `no dump matching ${name.source} in ${where}`);
+}
+
+if (args.dryRun) {
+  say(`dry run: fetch ${candidates[0]} from ${where} into ${shown(dir)}, checked before it is kept`);
+  if (candidates.length > 1) say(`dry run: if it is not complete, then ${candidates.slice(1).join(", then ")}`);
+  process.exit(0);
+}
+
+for (const candidate of candidates) {
+  if (fetchDump(source, candidate, dir)) {
+    console.log(shown(`${dir}/${candidate}`));
+    process.exit(0);
+  }
+  if (!file) say("Trying the dump before it");
+}
+die(1, file ? `${file} is not a complete dump` : `none of the newest ${candidates.length} dumps in ${where} is complete`);

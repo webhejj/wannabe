@@ -33,8 +33,10 @@ export function die(code: number, message: string): never {
 }
 
 export interface Args {
-  /** From --to, --from or --in. */
+  /** From --to, --from or --in: the last one given. */
   context: string;
+  /** Each of --to, --from and --in that was given, for a command that reads one context and changes another. */
+  contexts: Record<string, string>;
   dryRun: boolean;
   /** Flags that were given, of those declared. */
   flags: Set<string>;
@@ -52,10 +54,10 @@ export function parseArgs(
   argv: string[] = process.argv.slice(2),
   declared: { flags?: string[]; options?: string[]; positional?: boolean; context?: "required" | "none" } = {},
 ): Args {
-  const args: Args = { context: "", dryRun: process.env.WANNABE_DRY_RUN === "1", flags: new Set(), values: {}, rest: [] };
+  const args: Args = { context: "", contexts: {}, dryRun: process.env.WANNABE_DRY_RUN === "1", flags: new Set(), values: {}, rest: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (["--to", "--from", "--in"].includes(arg) && declared.context !== "none") args.context = argv[++i] ?? "";
+    if (["--to", "--from", "--in"].includes(arg) && declared.context !== "none") args.context = args.contexts[arg] = argv[++i] ?? "";
     else if (arg === "--dry-run") args.dryRun = true;
     else if (declared.flags?.includes(arg)) args.flags.add(arg);
     else if (declared.options?.includes(arg)) args.values[arg] = argv[++i] ?? die(2, `${arg} needs a value`);
@@ -65,7 +67,9 @@ export function parseArgs(
   if (args.dryRun) process.env.WANNABE_DRY_RUN = "1";
   if (declared.context !== "none") {
     if (!args.context) die(2, "which context? --to <context>");
-    if (!existsSync(join(wannabeDir, args.context))) die(2, `no context '${args.context}' in ${wannabeDir}`);
+    for (const context of Object.values(args.contexts)) {
+      if (!existsSync(join(wannabeDir, context))) die(2, `no context '${context}' in ${wannabeDir}`);
+    }
   }
   return args;
 }
