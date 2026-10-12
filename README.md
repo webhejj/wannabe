@@ -9,6 +9,8 @@ wannabe deployed --to test                    # deployment synced, pulled, runni
 wannabe deployment committed --to test --push # once test is verified
 wannatry deployed --to test                   # the same, as a dry run
 wannabe app running --to local                # start the app on this computer, wait until it is ready
+wannabe dump fetched --from prod --to local   # the newest complete prod dump
+wannabe database refreshed --to local         # restore it, then apply the migrations
 ```
 
 Every step is also its own command, so a chain that fails half-way is continued by hand from where it stopped.
@@ -23,7 +25,7 @@ resources, plugins — so the configuration and the habits carry over if the app
 [docs/design.md](docs/design.md) has the reasoning, and the tools weighed against it.
 
 **Status: early.** It runs one application's releases and test deployments: a Gradle build, an image pushed with
-Jib, Docker Compose on a host reached over ssh, and the app run on the developer's computer. Command names and the configuration may still change.
+Jib, Docker Compose on a host reached over ssh, and the app and its database on the developer's computer. Command names and the configuration may still change.
 
 ## Install
 
@@ -54,6 +56,7 @@ A project keeps its configuration in `.wannabe/` at its root, found by walking u
   local/
     context.yaml       # where the app is reached on this computer
     app.yaml           # how wannabe runs it here, and how readiness is checked
+    database.yaml      # how psql and Flyway reach the database, its dumps, what may change it
   test/
     context.yaml       # where test is: the application's URL, the host to deploy to
     deployment.yaml    # the compose directory, the service, how readiness is checked

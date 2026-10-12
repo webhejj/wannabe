@@ -82,6 +82,78 @@ wannabe only stops what it started. When something else listens on the port, suc
 `running` and `reloaded` answer with exit code 3 and leave it alone. The pid and the log are kept in
 `.wannabe/<context>/.state/`, which ignores itself in git.
 
+## Database
+
+`.wannabe/<context>/database.yaml`: how wannabe reaches the context's database, its dumps, and which commands
+may change it. A context without one is left alone: every database command answers with exit code 3.
+
+```yaml
+# .wannabe/local/database.yaml
+apiVersion: wannabe/v1alpha1
+kind: Database
+metadata:
+  name: my-app
+spec:
+  name: myapp
+  psql: [docker, compose, exec, -T, postgres, psql, -U, myapp]
+  flyway: [docker, compose, run, --rm, flyway]
+  dumps:
+    dir: data/dumps
+    name: '^myapp-\d{8}-\d{6}\.sql\.gz$'
+  allow: [dump fetched, database restored, database refreshed, flyway applied, flyway repaired]
+```
+
+```yaml
+# .wannabe/prod/database.yaml
+apiVersion: wannabe/v1alpha1
+kind: Database
+metadata:
+  name: my-app
+spec:
+  dumps:
+    from: backup@backup-host.example.com:/backups/myapp
+    name: '^myapp-\d{8}-\d{6}\.sql\.gz$'
+    maxTries: 4
+  allow: []
+  otherwise: production is changed by hand, by the operator
+```
+
+| Field                 | Used by                                          | Meaning                                                                                                                                                                                                |
+|-----------------------|--------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spec.name`           | `database restored`                              | The database a restore drops and creates                                                                                                                                                               |
+| `spec.psql`           | `database restored`                              | How psql is run against the context's database, as a list. wannabe adds `-d <database>` and its own options, and gives the SQL on stdin, so a psql inside a container works as well as one on the computer |
+| `spec.flyway`         | `flyway …`                                       | How Flyway is run against the context's database, as a list. wannabe adds the Flyway command: `migrate`, `info`, `validate`, `repair`                                                                    |
+| `spec.dumps.dir`      | `database restored`, `dump fetched` (as `--to`)  | Where the context's dumps are kept                                                                                                                                                                     |
+| `spec.dumps.name`     | `database restored`, `dump fetched`              | A regular expression a dump's file name must match. Names sort by their timestamp, so the newest is the last by name. A copy that is not dated, such as a `-latest` file, must not match                 |
+| `spec.dumps.from`     | `dump fetched` (as `--from`)                     | Where the context's dumps are fetched from: `host:dir` over ssh, or a directory                                                                                                                        |
+| `spec.dumps.maxTries` | `dump fetched`                                   | How many of the newest dumps to try when the newest is incomplete; 4 when left out                                                                                                                     |
+| `spec.allow`          | every command that changes something             | The commands allowed to change this context, by name. Anything else answers with exit code 3                                                                                                           |
+| `spec.otherwise`      | the same                                         | Who does it instead, or why not: the message of that exit code 3                                                                                                                                       |
+
+The commands:
+
+```
+wannabe dump fetched --from prod --to local   # the newest complete dump into local's dump directory; prints its path
+wannabe database restored --to local          # replace the database with the newest dump, or --dump <file>; prints the dump's path
+wannabe flyway applied --to local             # apply the pending migrations
+wannabe database refreshed --to local         # restored, then flyway applied, one straight after the other
+wannabe flyway listed --in local              # applied and pending migrations, on stdout
+wannabe flyway validated --in local           # check the applied migrations against their files
+wannabe flyway repaired --to local            # repair the schema history after a migration was changed
+```
+
+What wannabe keeps to, whatever the project:
+
+- The newest dump is chosen by name, from the directory itself, never from `ls` output.
+- A dump is complete before it is used: a `.gz` one passes `gzip -t`. A fetch is checked as a `.part` file before it
+  takes its name, so an incomplete one never lands in the dump directory.
+- A restore drops the database `WITH (FORCE)` and creates it again, owned by the user psql connects as, then
+  streams the dump into psql. Errors psql reports during the restore are counted and shown but do not stop it, as a
+  plain dump can carry harmless ones.
+- `refreshed` runs the restore and the migrations as one command, so nothing starts the application in between: a
+  restore brings back the source's schema history, and an application starting then would apply the migrations
+  itself.
+
 ## Deployment
 
 `.wannabe/<context>/deployment.yaml`: where the context's deployment files are, and how the service runs.
