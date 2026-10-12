@@ -100,7 +100,7 @@ spec:
   dumps:
     dir: data/dumps
     name: '^myapp-\d{8}-\d{6}\.sql\.gz$'
-  allow: [dump fetched, database restored, database refreshed, flyway applied, flyway repaired]
+  allow: [dump fetched, database restored, database refreshed, flyway applied, flyway repaired, sql applied, package applied]
 ```
 
 ```yaml
@@ -120,8 +120,8 @@ spec:
 
 | Field                 | Used by                                          | Meaning                                                                                                                                                                                                |
 |-----------------------|--------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spec.name`           | `database restored`                              | The database a restore drops and creates                                                                                                                                                               |
-| `spec.psql`           | `database restored`                              | How psql is run against the context's database, as a list. wannabe adds `-d <database>` and its own options, and gives the SQL on stdin, so a psql inside a container works as well as one on the computer |
+| `spec.name`           | `database restored`, `sql applied`, `package applied` | The context's database: what a restore drops and creates, and where SQL is applied                                                                                                                |
+| `spec.psql`           | `database restored`, `sql applied`, `package applied` | How psql is run against the context's database, as a list. wannabe adds `-d <database>` and its own options, and gives the SQL on stdin, so a psql inside a container works as well as one on the computer |
 | `spec.flyway`         | `flyway …`                                       | How Flyway is run against the context's database, as a list. wannabe adds the Flyway command: `migrate`, `info`, `validate`, `repair`                                                                    |
 | `spec.dumps.dir`      | `database restored`, `dump fetched` (as `--to`)  | Where the context's dumps are kept                                                                                                                                                                     |
 | `spec.dumps.name`     | `database restored`, `dump fetched`              | A regular expression a dump's file name must match. Names sort by their timestamp, so the newest is the last by name. A copy that is not dated, such as a `-latest` file, must not match                 |
@@ -140,6 +140,8 @@ wannabe database refreshed --to local         # restored, then flyway applied, o
 wannabe flyway listed --in local              # applied and pending migrations, on stdout
 wannabe flyway validated --in local           # check the applied migrations against their files
 wannabe flyway repaired --to local            # repair the schema history after a migration was changed
+wannabe sql applied --to local a.sql b.sql    # apply SQL files in the order given, stopping at the first failure
+wannabe package applied --to local pkg/sql    # every .sql file in a directory, in file-name order, the same way
 ```
 
 What wannabe keeps to, whatever the project:
@@ -150,6 +152,9 @@ What wannabe keeps to, whatever the project:
 - A restore drops the database `WITH (FORCE)` and creates it again, owned by the user psql connects as, then
   streams the dump into psql. Errors psql reports during the restore are counted and shown but do not stop it, as a
   plain dump can carry harmless ones.
+- SQL is applied with `ON_ERROR_STOP=1`, the only thing that makes psql stop at a failing statement and exit
+  non-zero. `sql applied` and `package applied` stop at the first failing file and list the files not run; psql's
+  NOTICEs are shown. Files are read from where wannabe is run. An empty package is an error.
 - `refreshed` runs the restore and the migrations as one command, so nothing starts the application in between: a
   restore brings back the source's schema history, and an application starting then would apply the migrations
   itself.

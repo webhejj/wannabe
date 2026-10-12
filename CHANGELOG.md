@@ -23,3 +23,5 @@ First version, used for one application's releases and test deployments.
 - `dump fetched`, `database restored` · `refreshed`, `flyway applied` · `listed` · `validated` · `repaired`, from
   `.wannabe/<context>/database.yaml`: the project says how psql and Flyway reach its database; wannabe picks the
   newest complete dump by name, restores it, and answers 3 for any change the context does not `allow`.
+- `sql applied` · `package applied`: SQL files in the order given, or a directory's in file-name order, each with
+  `ON_ERROR_STOP=1`, stopping at the first failing file and naming the ones not run.

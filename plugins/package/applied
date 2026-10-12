@@ -1,0 +1,25 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] <dir> — apply every .sql file in a directory to the context's database, in file-name order, stopping at the first failure
+//
+// A package is a directory of SQL files whose order matters: each may depend on what the one before did.
+// They are applied as sql applied applies them, sorted by file name, and an empty directory is an error
+// rather than a silent success. At the first failing file it stops and lists the files not run; never
+// resume by applying the whole package again: restore, or apply the rest one file at a time once the cause
+// is understood. The context must allow "package applied" in database.yaml.
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { applySql, requireAllowed } from "../../lib/database.ts";
+import { die, parseArgs } from "../../lib/plugin.ts";
+
+const args = parseArgs(process.argv.slice(2), { positional: true });
+if (args.rest.length !== 1) die(2, "which package? wannabe package applied --to <context> <dir>");
+await requireAllowed(args.context);
+const dir = args.rest[0];
+let isDir = false;
+try {
+  isDir = statSync(dir).isDirectory();
+} catch {}
+if (!isDir) die(1, `${dir} is not a directory`);
+const files = readdirSync(dir).filter((name) => name.endsWith(".sql")).sort().map((name) => join(dir, name));
+if (files.length === 0) die(1, `no .sql files in ${dir}`);
+await applySql(args.context, files, args.dryRun);
