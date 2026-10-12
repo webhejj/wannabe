@@ -179,3 +179,35 @@ export async function flyway(context: string, command: string, out: "stdout" | "
   const code = await child.exited;
   if (code !== 0) die(1, `flyway ${command} failed (exit ${code})`);
 }
+
+/**
+ * Applies SQL files in the order given, each through spec.psql with ON_ERROR_STOP, so psql exits non-zero at
+ * the first failing statement. Stops at the first file that fails and names the ones not run: order between
+ * files matters, so running the next one after a failure is never safe. psql's output, its NOTICEs included,
+ * goes to stderr. Paths are as the caller gave them, from the caller's directory.
+ */
+export async function applySql(context: string, files: string[], dryRun: boolean): Promise<void> {
+  for (const file of files) if (!existsSync(file)) die(1, `${file} not found; nothing applied`);
+  const psql = await tool(context, "psql");
+  const command = [...psql, "-d", await databaseName(context), "-v", "ON_ERROR_STOP=1"];
+  if (dryRun) {
+    for (const file of files) say(`dry run: ${command.join(" ")} < ${file}`);
+    process.exit(0);
+  }
+  for (const [index, file] of files.entries()) {
+    say(`Applying ${file}`);
+    const child = Bun.spawn(command, { cwd: projectDir, stdin: Bun.file(file), stdout: 2, stderr: 2, env: process.env });
+    const code = await child.exited;
+    if (code !== 0) {
+      const notRun = files.slice(index + 1);
+      say("");
+      say(`FAILED: ${file} (psql exit ${code})`);
+      if (notRun.length > 0) {
+        say(`Not run, ${notRun.length} of ${files.length}:`);
+        for (const skipped of notRun) say(`  ${skipped}`);
+      }
+      process.exit(1);
+    }
+  }
+  say(`Applied ${files.length} file(s) to '${context}'`);
+}

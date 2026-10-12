@@ -1,0 +1,15 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] <file>... — apply SQL files to the context's database, in the order given, stopping at the first failure
+//
+// Each file goes through spec.psql in .wannabe/<context>/database.yaml with ON_ERROR_STOP=1, which is what
+// makes psql stop at a failing statement and exit non-zero: generated SQL does not set it itself. At the
+// first failing file it stops and lists the files not run. psql's output, NOTICEs included, is shown on
+// stderr. Files are read from where wannabe is run, and must all exist before any is applied. There is
+// no rollback: recovery is a restore. The context must allow "sql applied" in database.yaml.
+import { applySql, requireAllowed } from "../../lib/database.ts";
+import { die, parseArgs } from "../../lib/plugin.ts";
+
+const args = parseArgs(process.argv.slice(2), { positional: true });
+if (args.rest.length === 0) die(2, "which SQL files? wannabe sql applied --to <context> <file>...");
+await requireAllowed(args.context);
+await applySql(args.context, args.rest, args.dryRun);
