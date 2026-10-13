@@ -13,7 +13,7 @@ export function selfUsage(): string {
     "  installed    [--into <dir>] [--force] — link wannabe, wannado and wannatry into <dir>, ~/.local/bin by default",
     "  uninstalled  [--into <dir>] — remove those links, when they point to this checkout",
     "  updated      [--check] — fast-forward this checkout to its upstream, then run what the change needs",
-    "  completion   zsh — print the zsh completion; source <(wannabe self completion zsh)",
+    "  completion   zsh | fish — print that shell's completion; 'self installed' names the line to add",
     "  get          <file> <path> — a value from .wannabe/<file>.yaml, e.g. get test/deployment spec.dir",
     "  version      — this checkout's version and commit, and whether it has local changes",
   ].join("\n");
@@ -87,7 +87,11 @@ export function links(env: Env, action: "installed" | "uninstalled", args: strin
   }
   if (action === "installed") {
     if (!(process.env.PATH ?? "").split(delimiter).includes(into)) report.push(`Warning: ${into} is not on PATH`);
-    report.push("For completion, add to ~/.zshrc: source <(wannabe self completion zsh)");
+    report.push(
+      (process.env.SHELL ?? "").endsWith("/fish")
+        ? "For completion, add to ~/.config/fish/config.fish: wannabe self completion fish | source"
+        : "For completion, add to ~/.zshrc: source <(wannabe self completion zsh)",
+    );
   }
   return report;
 }
@@ -105,6 +109,24 @@ _wannabe() {
 # compdef comes with zsh's completion system; load it when this shell has not.
 (( $+functions[compdef] )) || { autoload -Uz compinit && compinit; }
 compdef _wannabe wannabe wannado wannatry
+`;
+
+export const FISH_COMPLETION = `# wannabe completion for fish: asks the wannabe being completed, so one registration serves every project.
+function __wannabe_complete
+    set -l words (commandline -opc)
+    set -q words[1]; or return
+    # The word being completed is passed along too, empty or not: it is the position being asked about.
+    set -l current (commandline -ct)
+    set -l candidates ($words[1] __complete $words[2..] "$current" 2>/dev/null | string match -er .)
+    if test "$candidates[1]" = __dirs__
+        __fish_complete_directories
+    else
+        string join \\n -- $candidates
+    end
+end
+complete -c wannabe -f -a '(__wannabe_complete)'
+complete -c wannado -f -a '(__wannabe_complete)'
+complete -c wannatry -f -a '(__wannabe_complete)'
 `;
 
 /** self version: the package version, and the checkout's commit when it is a git checkout. */

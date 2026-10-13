@@ -2,7 +2,7 @@ import { dirname } from "node:path";
 import { complete } from "./complete.ts";
 import { helped, HelpError, listing } from "./help.ts";
 import { descend, type Env, isDirectory, isExecutableFile, locate, makeEnv } from "./project.ts";
-import { ExitError, get, links, selfUsage, version, ZSH_COMPLETION } from "./self.ts";
+import { ExitError, FISH_COMPLETION, get, links, selfUsage, version, ZSH_COMPLETION } from "./self.ts";
 import { updated } from "./update.ts";
 
 /** wannabe's checkout: bin/ is one level below it. */
@@ -75,10 +75,12 @@ async function self(env: Env, args: string[]): Promise<number> {
     case "updated":
       console.error((await updated(env, args.slice(1))).join("\n"));
       return 0;
-    case "completion":
-      if (args[1] !== "zsh") throw new ExitError(`Usage: ${env.name} self completion zsh`, 2);
-      process.stdout.write(ZSH_COMPLETION);
+    case "completion": {
+      const script = { zsh: ZSH_COMPLETION, fish: FISH_COMPLETION }[args[1] ?? ""];
+      if (!script) throw new ExitError(`Usage: ${env.name} self completion zsh | fish`, 2);
+      process.stdout.write(script);
       return 0;
+    }
     case "get":
       console.log(await get(env, args.slice(1)));
       return 0;

@@ -9,7 +9,7 @@ First version, used for one application's releases and test deployments.
 - Plugins looked up in the project's `.wannabe/plugins/`, then in wannabe's own.
 - `wannatry` for dry runs, `wannado` as another name.
 - Built-ins: `helped`, and `self installed` · `uninstalled` · `updated` · `completion` · `get` · `version`.
-- zsh completion.
+- Completion for zsh and fish, both asking the wannabe being completed.
 - Tests for dispatch, completion, compose editing and the deployment commands.
 - Secrets: `.wannabe/secrets.yaml` names them and never holds them; a value comes from `WANNABE_SECRET_<NAME>`, the
   secret's own command, or the computer's secret store (Keychain, libsecret, Credential Manager, through

@@ -31,6 +31,7 @@ Requires [Bun](https://bun.sh), and git, ssh and rsync for the commands that use
 ```bash
 ~/path/to/wannabe/bin/wannabe self installed [--into <dir>] [--force]
 source <(wannabe self completion zsh)      # in ~/.zshrc
+wannabe self completion fish | source      # in ~/.config/fish/config.fish
 ```
 
 This links `wannabe`, `wannado` and `wannatry` into `~/.local/bin`, or `<dir>`. Running it again changes

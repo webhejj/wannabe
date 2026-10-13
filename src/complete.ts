@@ -18,7 +18,7 @@ export function complete(env: Env, all: string[]): string[] {
     if (words[1] === "installed") return ["--into", "--force"];
     if (words[1] === "uninstalled") return ["--into"];
     if (words[1] === "updated") return ["--check"];
-    if (words[1] === "completion" && words.length === 2) return ["zsh"];
+    if (words[1] === "completion" && words.length === 2) return ["zsh", "fish"];
     return [];
   }
 

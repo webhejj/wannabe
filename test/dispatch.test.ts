@@ -99,6 +99,18 @@ describe("completion", () => {
   test("self and its options", () => {
     expect(complete("self", "")).toContain("installed");
     expect(complete("self", "installed", "--into", "")).toEqual(["__dirs__"]);
+    expect(complete("self", "completion", "")).toEqual(["zsh", "fish"]);
+  });
+});
+
+describe("self completion", () => {
+  test("prints a script for each shell it knows, and refuses another", () => {
+    const dir = project();
+    expect(wannabe(dir, ["self", "completion", "zsh"]).stdout).toContain("compdef _wannabe wannabe wannado wannatry");
+    expect(wannabe(dir, ["self", "completion", "fish"]).stdout).toContain("complete -c wannatry");
+    const run = wannabe(dir, ["self", "completion", "bash"]);
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain("self completion zsh | fish");
   });
 });
 
