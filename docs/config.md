@@ -39,7 +39,7 @@ spec:
 | Field                 | Used by                                           | Meaning                                                                                                                                    |
 |-----------------------|---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | `spec.endpoints.app`  | `app running`                                     | Where the application is served. `app running` prints it once the app is ready                                                             |
-| `spec.endpoints.host` | `deployment synced`, `pulled`, `running`, `ready` | The ssh target running the application. **Without it, the context is not deployed by wannabe**, and those commands answer with exit code 3 |
+| `spec.endpoints.host` | `deployment synced`, `pulled`, `running`, `stopped`, `ready` | The ssh target running the application. **Without it, the context is not deployed by wannabe**, and those commands answer with exit code 3 |
 
 ## Application
 
@@ -183,8 +183,8 @@ spec:
 |--------------------------------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `spec.dir`                     | `pinned`, `synced`, `committed`        | The compose directory, usually in a separate infra repository beside the project. Its git repository is found from it |
 | `spec.files`                   | `pinned`, `committed`                  | The files in `dir` whose `image:` line a release rewrites, and that `committed` commits                               |
-| `spec.remoteDir`               | `synced`, `pulled`, `running`, `ready` | Where `dir` is copied to on the host                                                                                  |
-| `spec.service`                 | `pinned`, `pulled`, `running`, `ready` | The compose service                                                                                                   |
+| `spec.remoteDir`               | `synced`, `pulled`, `running`, `stopped`, `ready` | Where `dir` is copied to on the host                                                                                  |
+| `spec.service`                 | `pinned`, `pulled`, `running`, `stopped`, `ready` | The compose service                                                                                                   |
 | `spec.readiness`               | `ready`                                | A URL polled **on the host** until it answers                                                                         |
 | `spec.readinessTimeoutSeconds` | `ready`                                | How long to wait; 180 when left out                                                                                   |
 

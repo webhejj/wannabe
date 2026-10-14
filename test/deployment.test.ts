@@ -96,4 +96,11 @@ describe("deployment committed", () => {
     expect(run.code).toBe(3);
     expect(run.stderr).toContain("has no host");
   });
+
+  test("deployment stopped, too, leaves a context without a host alone", () => {
+    const { project } = setup();
+    const run = wannabe(project, ["deployment", "stopped", "--to", "test"]);
+    expect(run.code).toBe(3);
+    expect(run.stderr).toContain("has no host");
+  });
 });

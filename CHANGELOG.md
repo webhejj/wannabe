@@ -23,5 +23,7 @@ First version, used for one application's releases and test deployments.
 - `database restored` · `refreshed` · `dump fetched` · `flyway applied` · `listed` · `validated` · `repaired`, from
   `.wannabe/<context>/database.yaml`: the project says how psql and Flyway reach its database; wannabe picks the
   newest complete dump by name, restores it, and answers 3 for any change the context does not `allow`.
+- `deployment stopped`: `docker compose stop` for the service on the context's host, the counterpart of
+  `deployment running`; like the other deployment commands, a context without a host answers 3.
 - `database sql applied` · `package applied`: SQL files in the order given, or a directory's in file-name order, each with
   `ON_ERROR_STOP=1`, stopping at the first failing file and naming the ones not run.

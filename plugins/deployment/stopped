@@ -1,0 +1,12 @@
+#!/usr/bin/env bun
+// wannabe: --to <context> [--dry-run] — stop the service, keeping its container for deployment running to start again
+//
+// Runs docker compose stop for spec.service on the context's host. The container and its volumes are kept;
+// wannabe deployment running starts it again. Stopping a stopped service changes nothing.
+import { get, host, parseArgs, run } from "../../lib/plugin.ts";
+
+const args = parseArgs();
+const target = await host(args.context);
+const remoteDir = await get(`${args.context}/deployment`, "spec.remoteDir");
+const service = await get(`${args.context}/deployment`, "spec.service");
+await run(["ssh", target, `cd '${remoteDir}' && docker compose stop '${service}'`]);
